@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,4 +5,377 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model BasicConfig {
+  id         Int       @id @default(autoincrement())
+  name       String
+  value      String
+  deleted    Int       @default(0) // 1 deleted, 0 not-deleted
+  suspended  Int       @default(0) // 1 suspended, 0 not-suspended
+  created_at DateTime? @default(now())
+  updated_at DateTime? @updatedAt
+  created_by Int?
+  updated_by Int?
+
+  @@map("basic_config")
+}
+
+model UserInfo {
+  id         Int        @id @default(autoincrement())
+  name       String     @db.VarChar(150)
+  email      String     @unique @db.VarChar(255)
+  password   String     @default("")
+  user_creds UserCred[]
+  created_at DateTime?  @default(now()) @map("created_at")
+  updated_at DateTime?  @updatedAt @map("updated_at")
+  auto_flows AutoFlow[]
+
+  @@map("user_info")
+}
+
+model UserCred {
+  id                Int       @id @default(autoincrement())
+  consumer_key      String    @db.VarChar(255)
+  consumer_secret   String    @db.VarChar(255)
+  access_token      String    @db.VarChar(1000)
+  access_token_ttl  DateTime  @db.Timestamptz(3)
+  refresh_token     String    @db.VarChar(1000)
+  refresh_token_ttl DateTime  @db.Timestamptz(3)
+  user              UserInfo  @relation(fields: [userId], references: [id])
+  userId            Int       @map("user_id")
+  createdAt         DateTime? @default(now()) @map("created_at")
+  updatedAt         DateTime? @updatedAt @map("updated_at")
+
+  @@map("user_credential")
+}
+
+model Service {
+  id                Int                @id @default(autoincrement())
+  name              String
+  serviceCode       String             @map("service_code")
+  description       String?
+  searchItems       String?            @map("service_items")
+  deleted           Int?               @default(0)
+  connected         Int?               @default(-1)
+  createdBy         Int?               @default(-1) @map("created_by")
+  service_auth      ServiceAuth[]
+  service_api       ServiceAPI[]
+  service_branding  ServiceBranding[]
+  service_statistic ServiceStatistic[]
+
+  createdAt DateTime? @default(now()) @map("created_at")
+  updatedAt DateTime? @updatedAt @map("updated_at")
+
+  @@map("service")
+}
+
+model ServiceStatistic {
+  id Int @id @default(autoincrement())
+
+  deployed_count Int
+
+  search_count Int? @default(0)
+
+  service    Service? @relation(fields: [service_id], references: [id])
+  service_id Int      @map("service_id")
+
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  @@map("service_statistic")
+}
+
+model MostSearchedServiceType {
+  id Int @id @default(autoincrement())
+
+  search_count Int? @default(0)
+
+  service_type String?
+
+  deleted Int? @default(0)
+
+  created_by Int?
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  @@map("most_searched_service_type")
+}
+
+model ServiceAuth {
+  id Int @id @default(autoincrement())
+
+  provider_name         String?
+  authorization_url     String?   @db.VarChar(1255)
+  client_id             String?   @db.VarChar(255)
+  client_secret         String?   @db.VarChar(255)
+  token_url             String?   @db.VarChar(1255)
+  redirect_url          String?   @db.VarChar(1255)
+  scope                 String?
+  access_token          String?   @db.VarChar(1000)
+  access_token_ttl      DateTime? @db.Timestamptz(3)
+  refresh_token         String?   @db.VarChar(1000)
+  refresh_token_ttl     DateTime? @db.Timestamptz(3)
+  token_secret          String?
+  demo_account_login    String?   @db.VarChar(255)
+  demo_account_password String?   @db.VarChar(255)
+  demo_account_notes    String?   @db.VarChar(1255)
+  deleted               Int?      @default(0)
+  category              Int?      @default(1) // 1: no auth, 2: auth but expires, 3: auth never expires
+
+  service    Service? @relation(fields: [service_id], references: [id])
+  service_id Int      @map("service_id")
+
+  created_by Int? @default(-1)
+
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  @@map("service_auth")
+}
+
+model ServiceAPI {
+  id           Int     @id @default(autoincrement())
+  url          String?
+  name         String?
+  service_key  String? @unique
+  description  String?
+  category     Int?
+  support_mail String?
+  service_path String?
+  invite_url   String?
+  deleted      Int?    @default(0)
+  service      Service @relation(fields: [service_id], references: [id])
+  service_id   Int     @map("service_id")
+
+  created_by           Int?                @default(-1)
+  created_at           DateTime?           @default(now()) @map("created_at")
+  updated_at           DateTime?           @updatedAt @map("updated_at")
+  service_api_triggers ServiceAPITrigger[]
+  service_api_actions  ServiceAPIAction[]
+
+  @@map("service_api")
+}
+
+model ServiceAPITrigger {
+  id             Int            @id @default(autoincrement())
+  name           String
+  description    String?
+  endpoint_path  String
+  endpoint_type  Int?           @default(1) // Endpoint type: API or RSS(Atom), accordingly value are 1, and 2
+  trigger_fields TriggerField[] // Trigger fields
+  expose_fields  ExposeField[] // Trigger ingredients
+  deleted        Int?           @default(0)
+
+  created_by     Int?       @default(-1)
+  service_api    ServiceAPI @relation(fields: [service_api_id], references: [id])
+  service_api_id Int        @map("service_api_id")
+
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  @@map("service_api_trigger")
+}
+
+model ServiceAPIAction {
+  id            Int     @id @default(autoincrement())
+  name          String
+  description   String?
+  endpoint_path String?
+  endpoint_type Int?    @default(1) // maybe not useful
+  deleted       Int?    @default(0)
+
+  invoke_type Int? @default(0) // 0: direct call, 1: http call, 2: webassembly
+
+  output_fields ActionOutputField[]
+
+  service_api    ServiceAPI @relation(fields: [service_api_id], references: [id])
+  service_api_id Int        @map("service_api_id")
+
+  created_by Int? @default(-1)
+
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  @@map("service_api_action")
+}
+
+model TriggerField {
+  id                  Int      @id @default(autoincrement())
+  key_name            String
+  label               String
+  helper_text         String?
+  validation_required Boolean? @default(false)
+  deleted             Int?     @default(0)
+
+  input_type        Int?
+  input_source_type Int?    @default(0) // 0: items specified here, 1: items get from youre service
+  input_source_api  String?
+
+  input_validation_rule Int?
+
+  service_api_trigger ServiceAPITrigger @relation(fields: [service_api_trigger_id], references: [id])
+
+  service_api_trigger_id Int @map("service_api_trigger_id")
+
+  created_by Int?      @default(-1)
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  @@map("trigger_field")
+}
+
+// Trigger Ingredient
+model ExposeField {
+  id       Int    @id @default(autoincrement())
+  key_name String // Slug snake_case
+  label    String // Name UpperCamelCase
+
+  helper_text String? // Note
+  example     String? // Example of exposed-field showing in action
+  field_type  Int?    @default(-1)
+  deleted     Int?    @default(0)
+
+  service_api_trigger ServiceAPITrigger @relation(fields: [service_api_trigger_id], references: [id])
+
+  service_api_trigger_id Int @map("service_api_trigger_id")
+
+  autoFlow     AutoFlow @relation(fields: [auto_flow_id], references: [id])
+  auto_flow_id Int      @map("auto_flow_id")
+
+  created_by Int?      @default(-1)
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  @@map("expose_field")
+}
+
+model ActionOutputField {
+  id          Int     @id @default(autoincrement())
+  key_name    String
+  label       String
+  helper_text String?
+
+  field_type       Int // 1: Textinput, 50: manual dropdown, 100: remote dropdown, 200: manual checkbox, 210: remote checkbox
+  field_source_api String?
+
+  deleted Int? @default(0)
+
+  created_by Int?      @default(-1)
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  service_api_action    ServiceAPIAction?    @relation(fields: [service_api_action_id], references: [id])
+  service_api_action_id Int?
+  ActionMappingField    ActionMappingField[]
+
+  @@map("action_output_field")
+}
+
+model ActionMappingField {
+  id          Int    @id @default(autoincrement())
+  label       String // For dropdown options' label
+  field_value String // For dropdown options' value
+  mapping     String // for string input field: Send {{todo_content}} to {{doc_name}}
+
+  // If it's mapping, store expose fields' id and key name
+  expose_field_info Json? // {id: `expose-field-id`, key-name: `expose-field-key-name`, name: `expose-field-label1`}
+
+  deleted Int? @default(0)
+
+  created_by Int?      @default(-1)
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  action_output_field    ActionOutputField? @relation(fields: [action_output_field_id], references: [id])
+  action_output_field_id Int?
+
+  auto_flow    AutoFlow? @relation(fields: [auto_flow_id], references: [id]) // One autoflow has one action-output-field
+  auto_flow_id Int?
+
+  @@map("action_mapping_field")
+}
+
+// Will be used in trigger / action input fields when users choose to use dropdown as input
+// a `FieldOption` is an option for the dropdown
+model FieldOption {
+  id    Int    @id @default(autoincrement())
+  label String
+  value String
+
+  trigger_field_id       Int? @map("trigger_field_id")
+  action_output_field_id Int? @map("action_output_field_id")
+
+  @@map("field_option")
+}
+
+model InputType {
+  id         Int    @id @default(autoincrement())
+  type_name  String
+  type_value String
+
+  @@map("input_type")
+}
+
+model FieldType {
+  id         Int    @id @default(autoincrement())
+  type_name  String
+  type_value String
+
+  @@map("field_type")
+}
+
+model InputValidationRule {
+  id         Int    @id @default(autoincrement())
+  rule_text  String
+  rule_value String
+
+  @@map("input_validation_rule")
+}
+
+model ServiceBranding {
+  id          Int     @id @default(autoincrement())
+  logo_url    String?
+  brand_color String
+  flow_logo   String?
+  service     Service @relation(fields: [service_id], references: [id])
+  service_id  Int     @map("service_id")
+
+  deleted Int? @default(0)
+
+  created_by Int?      @default(-1)
+  created_at DateTime? @default(now()) @map("created_at")
+  updated_at DateTime? @updatedAt @map("updated_at")
+
+  @@map("service_branding")
+}
+
+model AutoFlow {
+  id   Int     @id @default(autoincrement())
+  code String? @default("")
+
+  title String @default("If .. then ..")
+
+  trigger_id Int
+  action_id  Int?
+
+  trigger_info Json?
+  action_info  Json?
+
+  published Int @default(0) // 0: not published, 1: published
+
+  archived Int? @default(0) // 0: not archived, 1: archived
+  deleted  Int? @default(0)
+
+  user_info UserInfo? @relation(fields: [user_id], references: [id])
+  user_id   Int       @map("user_id")
+
+  created_by Int? @default(-1)
+
+  created_at         DateTime?            @default(now())
+  updated_at         DateTime?            @updatedAt
+  ActionMappingField ActionMappingField[]
+  ExposeField        ExposeField[]
+
+  @@map("auto_flow")
 }
