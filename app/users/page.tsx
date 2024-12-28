@@ -7,7 +7,7 @@ export default async function Page() {
     <div>
       <p>Users page</p>
       {users.map((u) => (
-        <li>{u.name}</li>
+        <li key={u.id}>{u.name}</li>
       ))}
     </div>
   );
